@@ -17,12 +17,11 @@ object Solution:
     val allIntermediatePositions = allStops.sliding(2, 1).toList.flatMap:
       case Array(start, end) => start.until(end)
 
-    val foundPositionPart2 = allIntermediatePositions.find:
-      currentPosition =>
-        (allIntermediatePositions.count:
-          innerPosition => innerPosition superpose currentPosition) > 1
+    val Some(foundPositionPart2, _) = allIntermediatePositions.lazyZip(allIntermediatePositions.tails.to(Iterable)).find:
+      (current, ending) => ending.tail.exists(_ superpose current)
+    : @unchecked
 
-    val resultPart2 = initialPosition.cabDistance(foundPositionPart2.get)
+    val resultPart2 = initialPosition.cabDistance(foundPositionPart2)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
