@@ -1,3 +1,5 @@
+import scala.annotation.tailrec
+
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
@@ -14,14 +16,11 @@ object Solution:
 
     val resultPart1 = initialPosition.cabDistance(allStops.last)
 
-    val allIntermediatePositions = allStops.sliding(2, 1).toList.flatMap:
+    val it = allStops.sliding(2, 1).flatMap:
       case Array(start, end) => start.until(end)
 
-    val Some(foundPositionPart2, _) = allIntermediatePositions.lazyZip(allIntermediatePositions.tails.to(Iterable)).find:
-      (current, ending) => ending.tail.exists(_ superpose current)
-    : @unchecked
+    val resultPart2 = initialPosition.cabDistance(findFirst(it).get)
 
-    val resultPart2 = initialPosition.cabDistance(foundPositionPart2)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -29,6 +28,16 @@ object Solution:
     (s"${result1}", s"${result2}")
 
 end Solution
+
+@tailrec
+def findFirst(positions: Iterator[Position], loaded: List[Position] = Nil): Option[Position] =
+  positions.nextOption() match
+    case None => None
+    case Some(value) =>
+      loaded.exists(_ superpose value) match
+        case true => Some(value)
+        case false => findFirst(positions, value +: loaded)
+
 
 enum Dir(val degrees: Int):
   def rotate(rotation: Rotation): Dir =
@@ -64,14 +73,14 @@ type Copier = Int => Position
 
 case class Position(row: Int, col: Int, direction: Dir):
   def superpose(other: Position): Boolean = row == other.row && col == other.col
-  def until(other: Position): List[Position] =
+  def until(other: Position): Iterable[Position] =
     def guessRangeAndCopier: (Range, Copier) =
       (other.row - row, other.col - col) match
         case (0, value) => (col until other.col by value.sign, newVal => this.copy(col = newVal))
         case (value, 0) => (row until other.row by value.sign, newVal => this.copy(row = newVal))
     val (range, copier) = guessRangeAndCopier
 
-    range.map(copier).toList
+    range.map(copier)
 
   def cabDistance(other: Position): Int =
     (row - other.row).abs + (col - other.col).abs
