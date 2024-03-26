@@ -1,4 +1,5 @@
 import scala.annotation.tailrec
+import scala.collection.immutable.HashSet
 
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
@@ -8,19 +9,18 @@ object Solution:
     val instructions = InstructionMapper.findAllIn(inputLines.head).toArray.collect:
       case InstructionMapper(rotation, steps) => Instruction(rotation, steps.toInt)
 
-    val initialPosition = Position(0, 0, N)
-    val allStops = instructions.scanLeft(initialPosition):
-      case (currentPosition @ Position(_, _, direction), Instruction(rotation, steps)) =>
+    val initialPOV = PointOfView(0, 0, N)
+    val allStops = instructions.scanLeft(initialPOV):
+      case (currentPosition @ PointOfView(_, _, direction), Instruction(rotation, steps)) =>
         val newDirection =  direction.rotate(rotation)
         currentPosition.walk(steps, newDirection).copy(direction = newDirection)
 
-    val resultPart1 = initialPosition.cabDistance(allStops.last)
+    val resultPart1 = initialPOV.cabDistance(allStops.last)
 
     val it = allStops.sliding(2, 1).flatMap:
       case Array(start, end) => start.until(end)
 
-    val resultPart2 = initialPosition.cabDistance(findFirst(it).get)
-
+    val resultPart2 = initialPOV.cabDistance(findFirst(it).get)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -30,13 +30,13 @@ object Solution:
 end Solution
 
 @tailrec
-def findFirst(positions: Iterator[Position], loaded: List[Position] = Nil): Option[Position] =
-  positions.nextOption() match
+def findFirst(positions: Iterator[PointOfView], loaded: HashSet[Position] = HashSet()): Option[PointOfView] =
+  positions.nextOption match
     case None => None
     case Some(value) =>
-      loaded.exists(_ superpose value) match
+      loaded.contains(value.position) match
         case true => Some(value)
-        case false => findFirst(positions, value +: loaded)
+        case false => findFirst(positions, loaded + value.position)
 
 
 enum Dir(val degrees: Int):
@@ -69,11 +69,13 @@ object Rotation:
 export Dir.*
 export Rotation.*
 
-type Copier = Int => Position
+type Copier = Int => PointOfView
+type Position = (Int, Int)
 
-case class Position(row: Int, col: Int, direction: Dir):
-  def superpose(other: Position): Boolean = row == other.row && col == other.col
-  def until(other: Position): Iterable[Position] =
+case class PointOfView(row: Int, col: Int, direction: Dir):
+  lazy val position: Position = (row, col)
+  def superpose(other: PointOfView): Boolean = row == other.row && col == other.col
+  def until(other: PointOfView): Iterable[PointOfView] =
     def guessRangeAndCopier: (Range, Copier) =
       (other.row - row, other.col - col) match
         case (0, value) => (col until other.col by value.sign, newVal => this.copy(col = newVal))
@@ -82,9 +84,9 @@ case class Position(row: Int, col: Int, direction: Dir):
 
     range.map(copier)
 
-  def cabDistance(other: Position): Int =
+  def cabDistance(other: PointOfView): Int =
     (row - other.row).abs + (col - other.col).abs
-  def walk(steps: Int, direction: Dir): Position =
+  def walk(steps: Int, direction: Dir): PointOfView =
     direction match
       case N => this.copy(row = row - steps)
       case S => this.copy(row = row + steps)
