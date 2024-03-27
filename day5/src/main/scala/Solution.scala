@@ -1,70 +1,58 @@
+import scala.annotation.tailrec
+
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    digits(0, inputLines.head).take(7).foreach(print)
-    //
-    // Code is here
-    //
+    val (resultPart1, resultPart2) = find(digits(0, inputLines.head))
 
-
-
-    val result1 = s""
-    val result2 = s""
+    val result1 = s"$resultPart1"
+    val result2 = s"$resultPart2"
 
     (s"${result1}", s"${result2}")
 
 end Solution
 
-def digits(fromIndex: Int = 0, root: String): LazyList[Char] =
-  def search(index: Int): (Char, Int) =
-    MD5.firstCharAfterZerosInHash(s"$root$index", 5) match
+def digits(fromIndex: Int = 0, root: String): LazyList[String] =
+  @tailrec
+  def search(index: Int): (String, Int) =
+    MD5.firstCharAfter5ZerosInHash(s"$root$index") match
       case Some(value) => (value, index)
       case None => search(index + 1)
-  val (foundChar, atIndex) = search(fromIndex)
+  val (foundChars, atIndex) = search(fromIndex)
 
-  foundChar #:: digits(atIndex+1, root)
+  foundChars #:: digits(atIndex+1, root)
 
+@tailrec
+def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Array[Option[Char]] = Array.fill(8)(None)): (String, String) =
+  def fromSixth(sixthValue: Char): Option[Int] =
+    sixthValue.asDigit match
+      case value if value < 8 => Some(value)
+      case _ => None
+  resultPart2.forall(_.isDefined) match
+    case true => (resultPart1, resultPart2.flatten.mkString)
+    case false =>
+      val Array(sixth, seventh, _*) = provider.head.toCharArray : @unchecked
+      val updatedPart1 = resultPart1.length match
+        case 8 => resultPart1
+        case _ => s"$resultPart1$sixth"
+
+      fromSixth(sixth).foreach:
+        asIndex =>
+          if (resultPart2(asIndex).isEmpty)
+            resultPart2(asIndex) = Some(seventh)
+
+      find(provider.tail, updatedPart1, resultPart2)
 
 object MD5 {
-  def firstCharAfterZerosInHash(s: String, nbOfZeros: Int): Option[Char] =
+  def firstCharAfter5ZerosInHash(s: String): Option[String] =
+    def padLeft(str: String, size: Int, char: Char): String = s"${char.toString*(size-str.length)}$str"
     val m = java.security.MessageDigest.getInstance("MD5")
     m.update(s.getBytes)
-    val firstBytes = m.digest.take(nbOfZeros / 2 + 1)
-    val valueOfFirstBytes = firstBytes.foldLeft(0):
+    val firstBytes = m.digest.take(4)
+    val valueOfFirstBytes = firstBytes.foldLeft(0l):
       case (acc, currentByte) => acc * 256 + (currentByte & 0xff)
 
     valueOfFirstBytes match
-      case value if value < 16 => value.toHexString.headOption
+      case value if value < 4096 => Some(padLeft(value.toHexString, 3, '0'))
       case _ => None
-
-
-  def hashNumberOfLeadingZerosBasedOnFirstBytes(s: String, maxZerosToFind: Int): Int = {
-    val nbOfBytes = math.ceil(maxZerosToFind / 2d).toInt
-    val m = java.security.MessageDigest.getInstance("MD5")
-    m.update(s.getBytes)
-    val firstBytes = m.digest.take(maxZerosToFind/2)
-    val valueOfFirstBytes = firstBytes.foldLeft(0):
-      case (acc, currentByte) => acc * 256 + (currentByte & 0xff).toInt
-
-    valueOfFirstBytes match
-      case 0 => maxZerosToFind
-      case value if value < 16 => maxZerosToFind - 1
-      case _ => -1
-  }
-
-  def hashNumberOfLeadingZeros(s: String): Int = {
-    val m = java.security.MessageDigest.getInstance("MD5")
-    m.update(s.getBytes)
-    val valueAsBytes = m.digest
-    32 - new java.math.BigInteger(1, valueAsBytes).toString(16).length
-  }
-  def hash(s: String): String = {
-    val m = java.security.MessageDigest.getInstance("MD5")
-    val b = s.getBytes("UTF-8")
-    m.update(b, 0, b.length)
-    val result = new java.math.BigInteger(1, m.digest()).toString(16)
-    32-result.length match
-      case 0 => result
-      case value => "0"*value + result
-  }
 }
