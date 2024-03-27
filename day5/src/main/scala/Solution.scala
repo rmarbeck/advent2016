@@ -28,9 +28,9 @@ def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Arra
     sixthValue.asDigit match
       case value if value < 8 => Some(value)
       case _ => None
-  resultPart2.forall(_.isDefined) match
-    case true => (resultPart1, resultPart2.flatten.mkString)
-    case false =>
+  resultPart2.exists(_.isEmpty) match
+    case false => (resultPart1, resultPart2.flatten.mkString)
+    case true =>
       val Array(sixth, seventh, _*) = provider.head.toCharArray : @unchecked
       val updatedPart1 = resultPart1.length match
         case 8 => resultPart1
@@ -43,16 +43,16 @@ def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Arra
 
       find(provider.tail, updatedPart1, resultPart2)
 
-object MD5 {
+object MD5:
   def firstCharAfter5ZerosInHash(s: String): Option[String] =
     def padLeft(str: String, size: Int, char: Char): String = s"${char.toString*(size-str.length)}$str"
     val m = java.security.MessageDigest.getInstance("MD5")
     m.update(s.getBytes)
     val firstBytes = m.digest.take(4)
-    val valueOfFirstBytes = firstBytes.foldLeft(0l):
-      case (acc, currentByte) => acc * 256 + (currentByte & 0xff)
+    if (firstBytes(0) != 0 || firstBytes(1) != 0 || (firstBytes(2) & 0xff) > 15)
+      None
+    else
+      val valueOfFirstBytes = firstBytes.drop(2).foldLeft(0l):
+        case (acc, currentByte) => acc * 256 + (currentByte & 0xff)
 
-    valueOfFirstBytes match
-      case value if value < 4096 => Some(padLeft(value.toHexString, 3, '0'))
-      case _ => None
-}
+      Some(padLeft(valueOfFirstBytes.toHexString, 3, '0'))
