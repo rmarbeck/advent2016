@@ -3,7 +3,7 @@ object Solution:
 
     val transposed = inputLines.map(_.toCharArray).toArray.transpose
 
-    val (resultPart1, resultPart2) = buildResult2(transposed)
+    val (resultPart1, resultPart2) = buildResult(transposed)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -12,7 +12,7 @@ object Solution:
 
 end Solution
 
-def buildResult2(input: Array[Array[Char]]): (String, String) =
+def buildResult(input: Array[Array[Char]]): (String, String) =
   input.foldLeft(("", "")):
     case ((part1, part2), line) =>
       val ranked = line.groupMapReduce(identity)(_ => 1)(_ + _).toArray.sortBy(_._2).collect(_._1)
