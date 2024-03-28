@@ -1,5 +1,6 @@
 import scala.io.Source
 import com.typesafe.scalalogging.Logger
+import solution.*
 
 val loggerAOC = Logger("aoc")
 val loggerAOCPart1 = Logger("aoc.part1")

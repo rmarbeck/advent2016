@@ -1,3 +1,5 @@
+package solution
+
 import scala.annotation.tailrec
 import scala.concurrent.{Await, Future}
 
@@ -6,7 +8,10 @@ val parallelization = 63
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val (resultPart1, resultPart2) = find(digitsPar(0, inputLines.head))
+    find(pekkoservice.DigitsService.provider)
+    val (resultPart1, resultPart2) = find(digits(0, inputLines.head).iterator)
+
+
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -15,11 +20,15 @@ object Solution:
 
 end Solution
 
+type DigitsProvider = Iterator[String]
+
 def digits(fromIndex: Int = 0, root: String): LazyList[String] =
   @tailrec
   def search(index: Int): (String, Int) =
     MD5.firstCharAfter5ZerosInHash(s"$root$index") match
-      case Some(value) => (value, index)
+      case Some(value) =>
+        println(s"$value $index")
+        (value, index)
       case None => search(index + 1)
   val (foundChars, atIndex) = search(fromIndex)
 
@@ -49,7 +58,7 @@ def digitsPar(fromIndex: Int = 0, root: String): LazyList[String] =
   digits(newIndex+1, root).prependedAll(values.map(_._1))
 
 @tailrec
-def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Array[Option[Char]] = Array.fill(8)(None)): (String, String) =
+def find(provider: DigitsProvider, resultPart1: String = "", resultPart2: Array[Option[Char]] = Array.fill(8)(None)): (String, String) =
   def fromSixth(sixthValue: Char): Option[Int] =
     sixthValue.asDigit match
       case value if value < 8 => Some(value)
@@ -57,7 +66,7 @@ def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Arra
   resultPart2.exists(_.isEmpty) match
     case false => (resultPart1, resultPart2.flatten.mkString)
     case true =>
-      val Array(sixth, seventh, _*) = provider.head.toCharArray : @unchecked
+      val Array(sixth, seventh, _*) = provider.next.toCharArray : @unchecked
       val updatedPart1 = resultPart1.length match
         case 8 => resultPart1
         case _ => s"$resultPart1$sixth"
@@ -67,7 +76,7 @@ def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Arra
           if (resultPart2(asIndex).isEmpty)
             resultPart2(asIndex) = Some(seventh)
 
-      find(provider.tail, updatedPart1, resultPart2)
+      find(provider, updatedPart1, resultPart2)
 
 object MD5:
   def firstCharAfter5ZerosInHash(s: String): Option[String] =
@@ -82,3 +91,4 @@ object MD5:
         case (acc, currentByte) => acc * 256 + (currentByte & 0xff)
 
       Some(padLeft(valueOfFirstBytes.toHexString, 3, '0'))
+
