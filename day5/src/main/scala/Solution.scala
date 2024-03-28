@@ -1,9 +1,12 @@
 import scala.annotation.tailrec
+import scala.concurrent.{Await, Future}
+
+val parallelization = 63
 
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val (resultPart1, resultPart2) = find(digits(0, inputLines.head))
+    val (resultPart1, resultPart2) = find(digitsPar(0, inputLines.head))
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -21,6 +24,29 @@ def digits(fromIndex: Int = 0, root: String): LazyList[String] =
   val (foundChars, atIndex) = search(fromIndex)
 
   foundChars #:: digits(atIndex+1, root)
+
+def digitsPar(fromIndex: Int = 0, root: String): LazyList[String] =
+
+  def search(index: Int): (IndexedSeq[Option[(String, Int)]], Int) =
+    import concurrent.ExecutionContext.Implicits.global
+    import concurrent.duration.DurationInt
+
+    val futures = (0 to parallelization).map:
+      innerIndex => Future {
+        MD5.firstCharAfter5ZerosInHash(s"$root${index+innerIndex}") match
+          case Some(value) => Some((value, index+innerIndex))
+          case None => None
+      }
+    val results = Future.sequence(futures)
+    val result = Await.result(results, 2.seconds)
+    result match
+      case value if value.flatten.isEmpty => search(index + (parallelization+1))
+      case _ => (result, index + parallelization)
+
+  val values = search(fromIndex)._1.flatten.sortBy(_._2)
+  val newIndex = search(fromIndex)._2
+
+  digits(newIndex+1, root).prependedAll(values.map(_._1))
 
 @tailrec
 def find(provider: LazyList[String], resultPart1: String = "", resultPart2: Array[Option[Char]] = Array.fill(8)(None)): (String, String) =
