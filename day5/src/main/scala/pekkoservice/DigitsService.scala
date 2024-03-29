@@ -7,10 +7,16 @@ import pekko.util.Timeout
 import concurrent.duration.DurationInt
 
 object DigitsService:
-  def provider: Iterator[String] = Connector.iterator
+  def provider(key: String): Iterator[String] =
+    Connector.changeRoot(key)
+    Connector.iterator
+  def stop: Unit = Connector.stop
 
 
 object Connector extends Iterable[String]:
+  var currentRoot: String = ""
+  def changeRoot(str: String) =
+    currentRoot = str
 
   import pekko.actor.typed.{ActorRef, ActorSystem}
   import org.apache.pekko.actor.typed.scaladsl.AskPattern.Askable
@@ -21,14 +27,17 @@ object Connector extends Iterable[String]:
   val system: ActorSystem[Communication.Command] = ActorSystem(DigitsProvider(), "rootsolver")
 
   given implicitSystem: ActorSystem[_] = system
-  given timeout: Timeout = 5.seconds
+  given timeout: Timeout = 20.seconds
 
   val nbProcs = Runtime.getRuntime.availableProcessors()
-  system ! Communication.Start(nbProcs, 5, 10 ,"ugkcyxxp", system)
+
 
   import concurrent.ExecutionContext.Implicits.global
 
+  def stop = system ! Communication.Stop()
+
   def iterator = new Iterator[String]:
+    system ! Communication.Start(nbProcs, 5, 10 , currentRoot, 50000, system)
     override def hasNext: Boolean = true
 
     override def next(): String =
@@ -37,7 +46,8 @@ object Connector extends Iterable[String]:
       }
 
       val result = fromPekko.collect:
-        case UnitResult(Successful(_, value, _)) => value
-        case _ => "error"
+        case UnitResult(value, index) =>
+          println(s"Found ${value} in ${index}")
+          value
 
-      Await.result(result, 5.seconds)
+      Await.result(result, 20.seconds)

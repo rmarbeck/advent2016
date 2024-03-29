@@ -8,10 +8,9 @@ val parallelization = 63
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    find(pekkoservice.DigitsService.provider)
-    val (resultPart1, resultPart2) = find(digits(0, inputLines.head).iterator)
-
-
+    val (resultPart1, resultPart2) = find(pekkoservice.DigitsService.provider(inputLines.head))
+    pekkoservice.DigitsService.stop
+    //val (resultPart1, resultPart2) = find(digits(0, inputLines.head).iterator)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -67,6 +66,7 @@ def find(provider: DigitsProvider, resultPart1: String = "", resultPart2: Array[
     case false => (resultPart1, resultPart2.flatten.mkString)
     case true =>
       val Array(sixth, seventh, _*) = provider.next.toCharArray : @unchecked
+      //println(s"Found !!!!!!!!!!!!!!! $sixth - $seventh")
       val updatedPart1 = resultPart1.length match
         case 8 => resultPart1
         case _ => s"$resultPart1$sixth"

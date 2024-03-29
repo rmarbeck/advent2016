@@ -7,27 +7,27 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.util.Success
 
-import InternalMessages.*
+import scala.annotation.tailrec
 
 object DigitsWorker:
 
-  def apply(index: Int): Behavior[Computation] =
-    manage(index)
+  def apply(workerId: Int): Behavior[Computation] =
+    manage(workerId)
 
-  private def manage(index: Int): Behavior[Computation] =
+  private def manage(workerID: Int): Behavior[Computation] =
     Behaviors.setup { context =>
       Behaviors.receiveMessage[Computation] {
-        case Mission(root, indexTo, sender) =>
-          context.log.debug(s"Computer[$index] Starting mission {} with index {}", root, indexTo)
+        case Mission(root, indexesTo, sender) =>
+          context.log.debug(s"Computer[$workerID] Starting mission {} with index {}", root, indexesTo)
           context.self ! Work()
-          work(root, indexTo, sender, index)
+          work(root, indexesTo, sender, workerID)
         case Finish() =>
-          context.log.debug("[Idle] : No need to finish, not working.......")
+          context.log.error("[Idle] : No need to finish, not working.......")
           Behaviors.same
         case Work() =>
           context.log.debug("[Idle] : Receiving continue, don't take it into account")
           Behaviors.same
-        case ResultFound(_, _) =>
+        case ResultFound(_, _, _, _, _) =>
           context.log.debug("[Idle] : Receiving good result, don't take it into account")
           Behaviors.same
         case value =>
@@ -43,7 +43,7 @@ object DigitsWorker:
       }
     }
 
-  private def work(root: String, indexTo: Int, requester: ActorRef[ComputationResult], index: Int): Behavior[Computation] =
+  private def work(root: String, indexesTo: List[Int], requester: ActorRef[Computation], workerID: Int): Behavior[Computation] =
     Behaviors.receive[Computation] { (context, message) =>
       context.log.trace("[work] : Receiving message....... {}", message)
 
@@ -54,31 +54,42 @@ object DigitsWorker:
           given executionContext: ExecutionContext =
             context.system.dispatchers.lookup(DispatcherSelector.fromConfig("for-blocking-dispatcher"))
 
-          doRunMission(root, indexTo, index).andThen:
-            case Success(Some((result: String, atIndex: Int))) =>
-              requester ! Successful(indexTo, result, Some(context.self))
-            case Success(None) =>
-              requester ! NotMatching(indexTo, Some(context.self))
+          doRunMission(root, indexesTo, workerID).andThen:
+            case Success(list: List[(Int, Option[String])]) =>
+              //println(s"[$workerID] until ${indexesTo.last}")
+              list.map(_._2).flatten.length match
+                case 0 => requester ! NoResultFound(root, indexesTo.head, indexesTo.last, context.self)
+                case _ =>
+                  val results = list.collect:
+                    case (index, Some(str)) => (index, str)
+                  requester ! ResultFound(root, indexesTo.head, indexesTo.last, results, context.self)
             case _ =>
               context.log.error("[work] : Error in retry, finishing")
               context.self ! Finish()
 
-          manage(index)
+          manage(workerID)
 
         case Finish() =>
-          context.log.debug("[work] : Finishing.......")
-          manage(index)
+          context.log.error("[work] : Finishing.......")
+          manage(workerID)
 
         case _ =>
           context.log.error("[work] : Unmanaged message received : {}", message.getClass)
           Behaviors.unhandled
     }
 
-  private def doRunMission(root: String, indexTo: Int, index: Int)(using executionContext: ExecutionContext): Future[Option[(String, Int)]] =
-    println(s"$root$indexTo ($index)")
-    import solution.*
+  private def doRunMission(root: String, indexesTo: List[Int], workerId: Int)(using executionContext: ExecutionContext): Future[List[(Int, Option[String])]] =
+    @tailrec
+    def search(remainingIndexes: List[Int], previousResults: List[(Int, Option[String])] = Nil): List[(Int, Option[String])] =
+      import solution.*
+      remainingIndexes match
+        case Nil => previousResults
+        case head :: tail =>
+          val currentResult = MD5.firstCharAfter5ZerosInHash(s"$root$head") match
+            case Some(value) => (head, Some(value))
+            case None => (head, None)
+          search(tail, currentResult +: previousResults)
+
     Future {
-      MD5.firstCharAfter5ZerosInHash(s"$root$indexTo") match
-        case Some(value) => Some(value, indexTo)
-        case None => None
+      search(indexesTo)
     }
