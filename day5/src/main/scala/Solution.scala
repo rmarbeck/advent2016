@@ -26,7 +26,7 @@ def digits(fromIndex: Int = 0, root: String): LazyList[String] =
   def search(index: Int): (String, Int) =
     MD5.firstCharAfter5ZerosInHash(s"$root$index") match
       case Some(value) =>
-        println(s"$value $index")
+        //println(s"$value $index")
         (value, index)
       case None => search(index + 1)
   val (foundChars, atIndex) = search(fromIndex)

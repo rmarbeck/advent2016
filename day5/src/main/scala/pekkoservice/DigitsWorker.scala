@@ -22,7 +22,7 @@ object DigitsWorker:
           context.self ! Work()
           work(root, indexesTo, sender, workerID)
         case Finish() =>
-          context.log.error("[Idle] : No need to finish, not working.......")
+          context.log.info("[Idle] : No need to finish, not working.......")
           Behaviors.same
         case Work() =>
           context.log.debug("[Idle] : Receiving continue, don't take it into account")
@@ -61,7 +61,9 @@ object DigitsWorker:
                 case 0 => requester ! NoResultFound(root, indexesTo.head, indexesTo.last, context.self)
                 case _ =>
                   val results = list.collect:
-                    case (index, Some(str)) => (index, str)
+                    case (index, Some(str)) =>
+                      //println(s"worker : $str => $index")
+                      (index, str)
                   requester ! ResultFound(root, indexesTo.head, indexesTo.last, results, context.self)
             case _ =>
               context.log.error("[work] : Error in retry, finishing")

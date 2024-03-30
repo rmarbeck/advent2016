@@ -34,7 +34,7 @@ object DigitsScheduler:
             context.log.debug("[Idle] : Receiving another answer, don't take it into account")
             Behaviors.same
           case message =>
-            context.log.error("[Idle] : Unmanaged message received : {}", message.getClass)
+            context.log.info("[Idle] : Unmanaged message received : {}", message.getClass)
             Behaviors.unhandled
       }
     }
@@ -77,10 +77,7 @@ object DigitsScheduler:
           workerResult.sortBy(_._1).foreach:
             (index, result) => results.markSuccessful(index, result)
 
-          val limits: List[Int] = ((indexStart - 1) +: workerResult.sortBy(_._1).map(_._1)) ::: List(indexEnd + 1)
-
-          limits.sliding(2, 1).foreach:
-            case start :: end :: Nil => results.markNotFound(start+1, end-1)
+          results.markSolved(indexStart, indexEnd)
 
           //println(s"Managed found result ${results}")
           sendAvailableResult(workingStatus, child)
@@ -92,7 +89,7 @@ object DigitsScheduler:
             )
           }
         case NotMatching(NoResultFound(root, indexStart, indexEnd, child)) if root == workingStatus.root =>
-          results.markNotFound(indexStart, indexEnd)
+          results.markSolved(indexStart, indexEnd)
 
           sendAvailableResult(workingStatus, child)
 
@@ -102,7 +99,7 @@ object DigitsScheduler:
               workingChildren = workingChildren.filterNot(_ == child),
             )
           }
-        case NotMatching | Successful =>
+        case NotMatching(_) | Successful(_) =>
           context.log.error("[Ready] : Receiving result of a previous mission")
           Behaviors.same
         case Stop() =>
@@ -114,7 +111,7 @@ object DigitsScheduler:
 
   private def sendAvailableResult(workingStatus: WorkingStatus, child: ActorRef[Computation])(using context: ActorContext[Command | ComputationResult]): Unit =
     workingStatus.results.shrink().foreach:
-      readyResult => workingStatus.provider ! UnitResult(readyResult._2, readyResult._1)
+      readyResult =>  workingStatus.provider ! UnitResult(readyResult._2, readyResult._1)
 
     if (workingStatus.shouldContinue)
       context.self ! Continue()
@@ -144,6 +141,7 @@ class AggregatedResults:
       inRanges.fold(newRange):
         case (acc, (currentMin, currentMax)) if currentMin - 1 == acc._2 => (acc._1, currentMax)
         case (acc, (currentMin, currentMax)) if currentMax + 1 == acc._1 => (currentMin, acc._2)
+        case _ => throw Exception("Not managed")
 
     var sortedRanges: List[MinMax] = List((min, min))
     def addRange(min: Int, max: Int): RangesStore =
@@ -155,10 +153,7 @@ class AggregatedResults:
       sortedRanges = compact((updated +: notConnected).sortBy(_._1))
       this
 
-    def hasValueBefore(index: Int): Boolean = sortedRanges.head._2 < (index - 1)
-    def removeHead(): RangesStore =
-      sortedRanges = sortedRanges.tail
-      this
+    def hasValueBefore(index: Int): Boolean = sortedRanges.head._2 >= index
 
   private var validResults: List[(Int, String)] = List()
   private val rangesStore: RangesStore = RangesStore(-1)
@@ -167,17 +162,13 @@ class AggregatedResults:
   def markSuccessful(index: Int, value: String): Unit =
     validResults = (validResults :+ (index, value)).sortBy(_._1)
 
-  def markNotFound(indexStart: Int, indexEnd: Int) =
+  def markSolved(indexStart: Int, indexEnd: Int) =
     rangesStore.addRange(indexStart, indexEnd)
 
-  def shrink(): Option[(Int, String)] =
+  def shrink(): List[(Int, String)] =
     validResults match
-      case Nil => None
+      case Nil => List()
       case head :: tail =>
-        rangesStore.hasValueBefore(head._1) match
-          case true => None
-          case false =>
-            validResults = tail
-            //println(validResults)
-            rangesStore.removeHead()
-            Some(head)
+        val (result, remaining) = validResults.span(res => rangesStore.hasValueBefore(res._1))
+        validResults = remaining
+        result

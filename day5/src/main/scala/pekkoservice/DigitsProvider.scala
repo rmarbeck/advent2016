@@ -100,23 +100,28 @@ object DigitsProvider:
     }
 
   private def answerToFirstSender(buffer: DigitsBuffer, waitingList: Seq[ActorRef[UnitResult]], currentSender: Option[ActorRef[UnitResult]])(using context: ActorContext[Command]): Seq[ActorRef[UnitResult]] =
+    def readySender: Option[ActorRef[UnitResult]] =
+      waitingList match
+        case Nil => currentSender
+        case head :: tail => Some(head)
+
     def appendCurrentSender: Seq[ActorRef[UnitResult]] =
       currentSender match
         case Some(value) => waitingList :+ value
         case None => waitingList
 
-    if (buffer.hasNext)
-      val (indexOfResult, valueOfResult) = buffer.next
-      if (waitingList.nonEmpty || currentSender.nonEmpty)
-        waitingList.headOption.getOrElse(currentSender.get) ! UnitResult(valueOfResult, indexOfResult)
-        currentSender match
-          case None => waitingList.tail
-          case Some(value) if waitingList.isEmpty => Seq(value)
-          case Some(value) => waitingList.tail :+ value
-      else
-        appendCurrentSender
-    else
-      appendCurrentSender
+    val newSenderList =
+      readySender match
+        case Some(sender) if buffer.hasNext =>
+          val (indexOfResult, valueOfResult) = buffer.next
+          sender ! UnitResult(valueOfResult, indexOfResult)
+          appendCurrentSender.filterNot(_ == sender)
+        case Some(sender) =>
+          appendCurrentSender
+        case _ => Nil
+
+    newSenderList
+
 
   private def askToFinishAndStop(scheduler: ActorRef[Command]): Unit =
     scheduler ! Stop()

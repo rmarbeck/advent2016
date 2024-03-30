@@ -37,7 +37,7 @@ object Connector extends Iterable[String]:
   def stop = system ! Communication.Stop()
 
   def iterator = new Iterator[String]:
-    system ! Communication.Start(nbProcs, 5, 10 , currentRoot, 50000, system)
+    system ! Communication.Start(nbProcs, 5, 10 , currentRoot, 2500, system)
     override def hasNext: Boolean = true
 
     override def next(): String =
@@ -46,8 +46,6 @@ object Connector extends Iterable[String]:
       }
 
       val result = fromPekko.collect:
-        case UnitResult(value, index) =>
-          println(s"Found ${value} in ${index}")
-          value
+        case UnitResult(value, index) => value
 
       Await.result(result, 20.seconds)
