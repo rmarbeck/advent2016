@@ -8,8 +8,7 @@ val parallelization = 63
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val (resultPart1, resultPart2) = find(pekkoservice.DigitsService.provider(inputLines.head))
-    pekkoservice.DigitsService.stop
+    val (resultPart1, resultPart2) = find(pekkoservice.DigitsService.getIterator(inputLines.head))
     //val (resultPart1, resultPart2) = find(digits(0, inputLines.head).iterator)
 
     val result1 = s"$resultPart1"

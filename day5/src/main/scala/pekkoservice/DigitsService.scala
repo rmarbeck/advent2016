@@ -1,43 +1,39 @@
 package pekkoservice
 
 import org.apache.pekko
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import pekko.util.Timeout
+
 import concurrent.duration.DurationInt
 
 object DigitsService:
-  def provider(key: String): Iterator[String] =
-    Connector.changeRoot(key)
-    Connector.iterator
-  def stop: Unit = Connector.stop
-
-
-object Connector extends Iterable[String]:
-  var currentRoot: String = ""
-  def changeRoot(str: String) =
-    currentRoot = str
+  private val BUFFER_MIN_SIZE = 5
+  private val BUFFER_MAX_SIZE = 10
+  private val BURST_SIZE = 5000
 
   import pekko.actor.typed.{ActorRef, ActorSystem}
   import org.apache.pekko.actor.typed.scaladsl.AskPattern.Askable
   import org.apache.pekko.actor.typed.scaladsl.AskPattern.schedulerFromActorSystem
   import scala.concurrent.ExecutionContext
   import scala.concurrent
-
   val system: ActorSystem[Communication.Command] = ActorSystem(DigitsProvider(), "rootsolver")
-
   given implicitSystem: ActorSystem[_] = system
-  given timeout: Timeout = 20.seconds
-
+  given timeout: Timeout = 2.seconds
   val nbProcs = Runtime.getRuntime.availableProcessors()
-
-
   import concurrent.ExecutionContext.Implicits.global
+  private var iteratorRunning = false
 
-  def stop = system ! Communication.Stop()
+  private def stopPreviousBeforeStart(): Unit =
+    if (iteratorRunning)
+      system ! Communication.Stop()
+    iteratorRunning = true
 
-  def iterator = new Iterator[String]:
-    system ! Communication.Start(nbProcs, 5, 10 , currentRoot, 2500, system)
+  def getIterator(root: String) = new Iterator[String]:
+    stopPreviousBeforeStart()
+    system ! Communication.Start(nbProcs, BUFFER_MIN_SIZE, BUFFER_MAX_SIZE , root, BURST_SIZE, system)
+
     override def hasNext: Boolean = true
 
     override def next(): String =
@@ -48,4 +44,4 @@ object Connector extends Iterable[String]:
       val result = fromPekko.collect:
         case UnitResult(value, index) => value
 
-      Await.result(result, 20.seconds)
+      Await.result(result, 2.seconds)

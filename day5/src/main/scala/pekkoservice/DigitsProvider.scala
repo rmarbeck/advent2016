@@ -9,7 +9,7 @@ import pekko.actor.typed.scaladsl.ActorContext
 
 object InternalMessages:
   sealed trait Computation
-  final case class Mission(root: String, indexes: List[Int], sender: ActorRef[Computation]) extends Computation
+  final case class Mission(root: String, indexStart: Int, indexEnd: Int, sender: ActorRef[Computation]) extends Computation
   final case class Finish() extends Computation
   final case class ResultFound(forRoot: String, indexStart: Int, indexEnd: Int, found: List[(Int, String)], worker: ActorRef[Computation]) extends Computation
   final case class NoResultFound(forRoot: String, indexStart: Int, indexEnd: Int, worker: ActorRef[Computation]) extends Computation
@@ -33,10 +33,10 @@ object Communication:
 export Communication.*
 
 class DigitsBuffer(val min: Int, val max: Int):
-  var data = Vector[(Int, String)]()
+  private var data = Vector[(Int, String)]()
   def shouldFeed: Boolean = data.length < min
   def isFull: Boolean = data.length >= max
-  def add(index: Int, value: String) = data = data. :+ (index, value)
+  def add(index: Int, value: String) = data = data :+ (index, value)
   def hasNext: Boolean = data.nonEmpty
   def next: (Int, String) =
     val current = data.head
@@ -49,49 +49,34 @@ object DigitsProvider:
 
   private def idle(scheduler: Option[ActorRef[Command]]): Behavior[Command] =
     Behaviors.setup[Command] { context =>
-      Behaviors.receiveMessage { message =>
-        context.log.trace("[Idle] : Receiving message....... {}", message)
+      Behaviors.receiveMessage {
+        case Start(maxChildren, maxBuffer, minBuffer, root, poolSize, _) =>
+          val schedulerToUse = scheduler match
+            case Some(value) => value
+            case None => context.spawn(DigitsScheduler(), s"digitsScheduler")
 
-        message match
-          case Start(maxChildren, maxBuffer, minBuffer, root, poolSize, _) =>
-            val schedulerToUse = scheduler match
-              case Some(value) => value
-              case None =>
-                context.log.debug("[Idle] : Starting scheduler")
-                context.spawn(DigitsScheduler(), s"digitsScheduler")
+          schedulerToUse ! Start(maxChildren, maxBuffer, minBuffer, root, poolSize, context.self)
 
-            schedulerToUse ! Start(maxChildren, maxBuffer, minBuffer, root, poolSize, context.self)
-            context.log.debug("[Idle] : {} scheduler created")
-            readyToResolve(schedulerToUse, DigitsBuffer(minBuffer, maxBuffer))
-          case UnitResult(_, _) =>
-            context.log.debug("[Idle] : Receiving another answer, don't take it into account")
-            Behaviors.same
-          case message =>
-            context.log.error("[Idle] : Unmanaged message received : {}", message.getClass)
-            Behaviors.unhandled
+          readyToResolve(schedulerToUse, DigitsBuffer(minBuffer, maxBuffer))
+        case UnitResult(_, _) =>
+          context.log.debug("[Idle] : Receiving another answer, don't take it into account")
+          Behaviors.same
+        case message =>
+          context.log.error("[Idle] : Unmanaged message received : {}", message.getClass)
+          Behaviors.unhandled
       }
     }
 
   private def readyToResolve(scheduler: ActorRef[Command], buffer: DigitsBuffer, waitingList: Seq[ActorRef[UnitResult]] = Seq()): Behavior[Command] =
     Behaviors.receive[Command] { (context, message) =>
-      context.log.trace("[Ready] : Receiving message....... {}", message.getClass)
-
       given ActorContext[Command] = context
 
       message match
         case Next(sender) =>
-          val updatedWaitingList = answerToFirstSender(buffer, waitingList, Some(sender))
-          readyToResolve(scheduler, buffer, updatedWaitingList)
+          answer(scheduler, buffer, waitingList, Some(sender))
         case UnitResult(result, index) =>
-          //println(s"Found : $result, $index, [buffer full ${buffer.isFull}]")
-          context.log.debug("[Ready] : Receiving answer, {}", result)
           buffer.add(index, result)
-          val updatedWaitingList = answerToFirstSender(buffer, waitingList, None)
-          if (!buffer.shouldFeed || buffer.isFull)
-            scheduler! Pause()
-          else
-            scheduler! Continue()
-          readyToResolve(scheduler, buffer, updatedWaitingList)
+          answer(scheduler, buffer, waitingList, None)
         case Stop() =>
           context.log.info("[Ready] : Stopping children")
           askToFinishAndStop(scheduler)
@@ -99,29 +84,25 @@ object DigitsProvider:
         case _ => Behaviors.unhandled
     }
 
+  private def answer(scheduler: ActorRef[Command], buffer: DigitsBuffer, waitingList: Seq[ActorRef[UnitResult]], sender: Option[ActorRef[UnitResult]])(using ActorContext[Command]) : Behavior[Command] =
+    val updatedWaitingList = answerToFirstSender(buffer, waitingList, sender)
+    if (!buffer.shouldFeed || buffer.isFull)
+      scheduler ! Pause()
+    else
+      scheduler ! Continue()
+    readyToResolve(scheduler, buffer, updatedWaitingList)
+
   private def answerToFirstSender(buffer: DigitsBuffer, waitingList: Seq[ActorRef[UnitResult]], currentSender: Option[ActorRef[UnitResult]])(using context: ActorContext[Command]): Seq[ActorRef[UnitResult]] =
-    def readySender: Option[ActorRef[UnitResult]] =
-      waitingList match
-        case Nil => currentSender
-        case head :: tail => Some(head)
+    val newSenderList = currentSender match
+      case Some(value) => waitingList :+ value
+      case None => waitingList
 
-    def appendCurrentSender: Seq[ActorRef[UnitResult]] =
-      currentSender match
-        case Some(value) => waitingList :+ value
-        case None => waitingList
-
-    val newSenderList =
-      readySender match
-        case Some(sender) if buffer.hasNext =>
-          val (indexOfResult, valueOfResult) = buffer.next
-          sender ! UnitResult(valueOfResult, indexOfResult)
-          appendCurrentSender.filterNot(_ == sender)
-        case Some(sender) =>
-          appendCurrentSender
-        case _ => Nil
-
-    newSenderList
-
+    newSenderList match
+      case head :: tail if buffer.hasNext =>
+        val (indexOfResult, valueOfResult) = buffer.next
+        head ! UnitResult(valueOfResult, indexOfResult)
+        tail
+      case currentList => currentList
 
   private def askToFinishAndStop(scheduler: ActorRef[Command]): Unit =
     scheduler ! Stop()
