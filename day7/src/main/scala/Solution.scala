@@ -1,24 +1,22 @@
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val withoutSquareBrackets = """(\[.+\])|([^\[\]]+)""".r.unanchored
+    val withoutSquareBracketsStrict = """(?:\[[^\]]+\])?([^\[\]]*)(?:\[[^\]]+\])?""".r.unanchored
     val withinSquareBrackets = """\[([^\]]+)\]""".r.unanchored
 
-    val resultPart1 = inputLines.count:
+    val (list1, list2) = inputLines.collect:
       line =>
-        withinSquareBrackets.findAllMatchIn(line).flatMap(_.subgroups).exists(isAbba) match
-          case true => false
-          case false => line.split("""\[|\]""").exists(isAbba)
+        val hypernetGroups = withoutSquareBracketsStrict.findAllMatchIn(line).flatMap(_.subgroups).toList
+        val supernetGroups = withinSquareBrackets.findAllIn(line).toList
+        val part1 = hypernetGroups.exists(isAbba) match
+          case true => ! supernetGroups.exists(isAbba)
+          case false => false
+        val part2 = (hypernetGroups.flatMap(extractAba).map(swapAba) intersect supernetGroups.filterNot(hypernetGroups contains _).flatMap(extractAba).toSeq).nonEmpty
+        (part1, part2)
+    .unzip
 
-    val resultPart2 = inputLines.count:
-      line =>
-        val inHypernet = withinSquareBrackets.findAllMatchIn(line).flatMap(_.subgroups).toList
-        val inSupernetOnly = line.split("""\[|\]""").filterNot(inHypernet contains _)
-        (inHypernet.flatMap(extractAba).map(swapAba).toSeq intersect inSupernetOnly.flatMap(extractAba).toSeq).nonEmpty
-
-
-    val result1 = s"$resultPart1"
-    val result2 = s"$resultPart2"
+    val result1 = s"${list1.count(_ == true)}"
+    val result2 = s"${list2.count(_ == true)}"
 
     (s"${result1}", s"${result2}")
 
