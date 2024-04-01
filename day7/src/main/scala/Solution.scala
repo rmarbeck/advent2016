@@ -4,8 +4,8 @@ object Solution:
     val withoutSquareBracketsStrict = """(?:\[[^\]]+\])?([^\[\]]*)(?:\[[^\]]+\])?""".r.unanchored
     val withinSquareBrackets = """\[([^\]]+)\]""".r.unanchored
 
-    val List(resultPart1, resultPart2) = inputLines.collect:
-      line =>
+    val (resultPart1, resultPart2) = inputLines.foldLeft((0, 0)):
+      case ((acc1, acc2), line) =>
         val hypernetGroups = withoutSquareBracketsStrict.findAllMatchIn(line).flatMap(_.subgroups).toSet
         val supernetGroups = withinSquareBrackets.findAllIn(line).toSet
         val part1: Boolean =
@@ -13,10 +13,7 @@ object Solution:
             case true => ! supernetGroups.exists(isAbba)
             case false => false
         val part2: Boolean = (hypernetGroups.flatMap(extractAba).map(swapAba) intersect supernetGroups.flatMap(extractAba)).nonEmpty
-        (part1, part2)
-    .unzip
-    .toList
-    .map(_.count(_ == true))
+        (acc1 + part1, acc2 + part2)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
@@ -34,3 +31,9 @@ def extractAba(str: String): Iterator[String] =
     case matchingValues @ Array(first, second, third) if first == third && second != third => matchingValues.mkString
 
 def swapAba(str: String): String = s"${str(1)}${str(0)}${str(1)}"
+
+extension (i: Int)
+  def +(boolean: Boolean): Int =
+    i + (boolean match
+      case true => 1
+      case false => 0)
