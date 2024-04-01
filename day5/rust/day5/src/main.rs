@@ -1,21 +1,20 @@
 use std::io;
 use std::io::Write;
 use md5;
-use substring::Substring;
 
 fn main() {
     for root in ["abc", "ugkcyxxp"] {
         let mut index= 0;
         let mut part1_counter = 0;
         let mut part2_counter = 0;
-        let mut found_part2: [Option<String>; 8] = Default::default();
+        let mut found_part2: [Option<char>; 8] = Default::default();
         println!("Searching for '{}' :", root);
         while part1_counter < 8 || part2_counter < 8 {
             let digest = md5::compute(format!("{}{}", root, index));
             if digest[0] == 0 && digest[1] == 0 && digest[2] < 16 {
                 let sixth: usize = digest[2] as usize;
                 if digest[2] < 8 && found_part2[sixth] == None {
-                    found_part2[sixth] = Some(format!("{:x}", digest[3]).substring(0, 1).to_string());
+                    found_part2[sixth] = Some(format!("{:#04x}", digest[3]).chars().nth(2).unwrap());
                     part2_counter += 1
                 }
                 if part1_counter < 8 {
