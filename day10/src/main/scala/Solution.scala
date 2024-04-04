@@ -22,7 +22,6 @@ object Solution:
     initialisation.foreach:
       case InitRule(bot, chip) => bot.accept(chip)
 
-
     val resultPart1 = listener.getValue
 
     val result1 = s"${resultPart1.map(_.name).getOrElse(0)}"
@@ -48,7 +47,7 @@ type BotName = Int
 type OutputName = Int
 
 class World(using Listener):
-  val bots: mutable.Map[BotName, Bot] = mutable.HashMap[BotName, Bot]()
+  private val bots: mutable.Map[BotName, Bot] = mutable.HashMap[BotName, Bot]()
   val outputs: mutable.Map[OutputName, Output] = mutable.HashMap[OutputName, Output]()
   def getBot(name: BotName): Bot =
     bots.getOrElseUpdate(name, Bot(name, List()))
@@ -82,15 +81,15 @@ class Bot(val name: Int, var chips: List[Int])(using Listener) extends Destinati
     this
 
   private def give(destination: Destination, toGive: Int): Bot =
-    require(chips.length >= 1)
+    require(chips.nonEmpty)
     destination.accept(toGive)
     this.chips = this.chips.filterNot(_ == toGive)
     this
 
-  def giveLower(): Bot =
+  private def giveLower(): Bot =
     require(lowDest.isDefined)
     give(lowDest.get, this.chips.min)
 
-  def giveHigher(): Bot =
+  private def giveHigher(): Bot =
     require(highDest.isDefined)
     give(highDest.get, this.chips.max)
