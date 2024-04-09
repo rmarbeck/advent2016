@@ -10,7 +10,7 @@ object Solution:
 
     val discsPart2 = discsPart1 :+ Disc(discsPart1.length + 1, 11, 0)
 
-    val resultPart2 = find(0, discsPart2)
+    val resultPart2 = find(resultPart1, discsPart2)
 
     val result1 = s"$resultPart1"
     val result2 = s"$resultPart2"
