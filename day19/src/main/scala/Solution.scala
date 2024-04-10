@@ -1,13 +1,13 @@
 import scala.annotation.tailrec
+import scala.collection.mutable.ArrayBuffer
 
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
     val nbInput = inputLines.head.toInt
 
-
     val result1 = s"${findLastElf(nbInput)}"
-    val result2 = s""
+    val result2 = s"${findLastBuffered(ArrayBuffer.tabulate(nbInput)(_ + 1))}"
 
     (s"${result1}", s"${result2}")
 
@@ -21,4 +21,28 @@ def findLastElf(numberOfElves: Int): Int =
         case false => loop(current + 1)
     loop(0)
   2 * (numberOfElves - lastPowerOfTwoBelow) + 1
+
+
+@tailrec
+def findLast(elves: Array[Int], index: Int = 0): Int =
+  println(elves.size)
+  elves.size match
+    case 1 => elves(0)
+    case size =>
+      val indexOfElfToRemove = (index + (size / 2)) % size
+      elves(indexOfElfToRemove) = 0
+      findLast(elves.filterNot(_ == 0), (index + 1) % size)
+
+
+@tailrec
+def findLastBuffered(elves: ArrayBuffer[Int], index: Int = 0): Int =
+  elves.size match
+    case 1 => elves(0)
+    case size =>
+      val indexOfElfToRemove = (index + (size / 2)) % size
+      elves.remove(indexOfElfToRemove)
+      if (indexOfElfToRemove < (index % size))
+        findLastBuffered(elves, index % (size - 1))
+      else
+        findLastBuffered(elves, (index + 1) % (size - 1))
 
