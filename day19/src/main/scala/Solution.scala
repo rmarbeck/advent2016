@@ -7,7 +7,7 @@ object Solution:
     val nbInput = inputLines.head.toInt
 
     val result1 = s"${findLastElf(nbInput)}"
-    val result2 = s"${findLastBuffered(ArrayBuffer.tabulate(nbInput)(_ + 1))}"
+    val result2 = s"${findLastBuffered(ArrayBuffer.tabulate(nbInput)(_ + 1), nbInput)}"
 
     (s"${result1}", s"${result2}")
 
@@ -35,14 +35,22 @@ def findLast(elves: Array[Int], index: Int = 0): Int =
 
 
 @tailrec
-def findLastBuffered(elves: ArrayBuffer[Int], index: Int = 0): Int =
-  elves.size match
+def findLastBuffered(elves: ArrayBuffer[Int], size: Int, index: Int = 0, start: Long = System.currentTimeMillis()): Int =
+  size match
     case 1 => elves(0)
     case size =>
+      val newStart = size % 10000 == 0 match
+        case true =>
+          val now = System.currentTimeMillis()
+          println(s"${now - start}ms (for size : $size)")
+          now
+        case false => start
+
       val indexOfElfToRemove = (index + (size / 2)) % size
       elves.remove(indexOfElfToRemove)
+      val newSize = size - 1
       if (indexOfElfToRemove < (index % size))
-        findLastBuffered(elves, index % (size - 1))
+        findLastBuffered(elves, newSize, index % newSize, newStart)
       else
-        findLastBuffered(elves, (index + 1) % (size - 1))
+        findLastBuffered(elves, newSize, (index + 1) % newSize, newStart)
 
