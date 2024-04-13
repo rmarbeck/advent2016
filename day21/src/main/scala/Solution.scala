@@ -1,24 +1,26 @@
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val initial = inputLines.length match
-      case 8 => "abcde"
-      case _ => "abcdefgh"
+    val (part1Initial, part2Initial) = inputLines.length match
+      case 8 => ("abcde", "decab")
+      case _ => ("abcdefgh", "fbgdceah")
 
 
     val actions = inputLines.collect:
       case s"swap position $x with position $y" => SwapPosition(x.toInt, y.toInt)
       case s"swap letter $x with letter $y" => SwapLetter(x.head, y.head)
-      case s"rotate left $x step$_" => RotateLeft(x.toInt)
-      case s"rotate right $x step$_" => RotateRight(x.toInt)
+      case s"rotate $direction $x step$_" =>
+        direction match
+          case "left" => RotateLeft(x.toInt)
+          case _ => RotateRight(x.toInt)
       case s"rotate based on position of letter $x" => RotateOnPosition(x.head)
       case s"reverse positions $x through $y" => ReversePositions(x.toInt, y.toInt)
       case s"move position $x to position $y" => MovePosition(x.toInt, y.toInt)
 
-    val resultPart1 = actions.foldLeft(initial):
+    val resultPart1 = actions.foldLeft(part1Initial):
       case (acc, action: Action) => action.forward(acc)
 
-    val resultPart2 = actions.reverse.foldLeft("fbgdceah"):
+    val resultPart2 = actions.reverse.foldLeft(part2Initial):
       case (acc, action: Action) => action.backward(acc)
 
     val result1 = s"$resultPart1"
@@ -77,20 +79,37 @@ case class RotateOnPosition(letter: Char) extends Action:
       case _ => rotateRightNTime(index + 1)
 
   override def backward(input: String): String =
-    def rotateLeftNTime(n: Int): String =
+    def computeInitialPosition(currentPosition: Int): Int =
+      val all = (0 until input.length).map:
+        current => (current,
+          current match
+            case value if value >= 4 => (current + (current + 2)) % input.length
+            case _ => (current + (current + 1)) % input.length
+        )
+      val found = all.find(_._2 == currentPosition)
+      println(found)
+      val newPosition = found.map(_._1).get
+      if (newPosition >= currentPosition)
+        newPosition - currentPosition
+      else
+        newPosition - currentPosition + input.length
+
+
+    def rotateRightBackWardtNTime(n: Int): String =
       (1 to n).foldLeft(input):
-        (acc, _) => RotateLeft(1).forward(acc)
+        (acc, _) => RotateRight(1).backward(acc)
 
     val index = input.indexOf(letter)
+    //rotateRightBackWardtNTime(computeInitialPosition(index))
     index match
-      case value if value == (input.length - 1) => rotateLeftNTime(input.length - 4)
-      case value if value == (input.length - 2) => rotateLeftNTime(input.length - 0)
-      case value if value == (input.length - 3) => rotateLeftNTime(input.length - 5)
-      case value if value == (input.length - 4) => rotateLeftNTime(input.length - 1)
-      case value if value == (input.length - 5) => rotateLeftNTime(input.length - 6)
-      case value if value == (input.length - 6) => rotateLeftNTime(input.length - 2)
-      case value if value == (input.length - 7) => rotateLeftNTime(input.length - 7)
-      case 0 => rotateLeftNTime(1)
+      case 0 => rotateRightBackWardtNTime(1)
+      case value if value == (input.length - 1) => rotateRightBackWardtNTime(input.length - 4)
+      case value if value == (input.length - 2) => rotateRightBackWardtNTime(input.length - 0)
+      case value if value == (input.length - 3) => rotateRightBackWardtNTime(input.length - 5)
+      case value if value == (input.length - 4) => rotateRightBackWardtNTime(input.length - 1)
+      case value if value == (input.length - 5) => rotateRightBackWardtNTime(input.length - 6)
+      case value if value == (input.length - 6) => rotateRightBackWardtNTime(input.length - 2)
+      case value if value == (input.length - 7) => rotateRightBackWardtNTime(input.length - 7)
       case _ => throw Exception("Not managed")
 
 case class ReversePositions(xPos: Int, yPos: Int) extends Action:
