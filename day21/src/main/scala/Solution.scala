@@ -58,59 +58,54 @@ case class SwapLetter(letterX: Char, letterY: Char) extends Action:
 
 case class RotateLeft(steps: Int) extends Action:
   override def forward(input: String): String =
+    require(input.length >= steps)
     s"${input.drop(steps)}${input.take(steps)}"
 
   override def backward(input: String): String = RotateRight(steps).forward(input)
 
 case class RotateRight(steps: Int) extends Action:
   override def forward(input: String): String =
+    require(input.length >= steps)
     s"${input.takeRight(steps)}${input.dropRight(steps)}"
 
   override def backward(input: String): String = RotateLeft(steps).forward(input)
 
 case class RotateOnPosition(letter: Char) extends Action:
+  private def computeNext(index: Int, size: Int): (Int, Int) =
+    val nbMove = index match
+      case value if value >= 4 => value + 2
+      case value => value + 1
+    val newIndex = (index + nbMove) % size
+    (nbMove, newIndex)
+
   override def forward(input: String): String =
     def rotateRightNTime(n: Int): String =
       (1 to n).foldLeft(input):
         (acc, _) => RotateRight(1).forward(acc)
-    val index = input.indexOf(letter)
-    index match
-      case value if value >= 4 => rotateRightNTime(index + 2)
-      case _ => rotateRightNTime(index + 1)
+
+    val (nbMove, _) = computeNext(input.indexOf(letter), input.length)
+    rotateRightNTime(nbMove)
+
+  import scala.collection.mutable.Map
+  private lazy val cachedMoves: Map[Int, Int] = Map[Int, Int]()
 
   override def backward(input: String): String =
-    def computeInitialPosition(currentPosition: Int): Int =
-      val all = (0 until input.length).map:
-        current => (current,
-          current match
-            case value if value >= 4 => (current + (current + 2)) % input.length
-            case _ => (current + (current + 1)) % input.length
-        )
-      val found = all.find(_._2 == currentPosition)
-      println(found)
-      val newPosition = found.map(_._1).get
-      if (newPosition >= currentPosition)
-        newPosition - currentPosition
-      else
-        newPosition - currentPosition + input.length
-
+    def computeNbMove(currentPosition: Int): Int =
+      cachedMoves.contains(currentPosition) match
+        case true => cachedMoves(currentPosition)
+        case false =>
+          (0 until input.length).map:
+            computeNext(_, input.length)
+          .foreach:
+            (nbMove, newIndex) => cachedMoves.update(newIndex, nbMove)
+          cachedMoves(currentPosition)
 
     def rotateRightBackWardtNTime(n: Int): String =
       (1 to n).foldLeft(input):
         (acc, _) => RotateRight(1).backward(acc)
 
-    val index = input.indexOf(letter)
-    //rotateRightBackWardtNTime(computeInitialPosition(index))
-    index match
-      case 0 => rotateRightBackWardtNTime(1)
-      case value if value == (input.length - 1) => rotateRightBackWardtNTime(input.length - 4)
-      case value if value == (input.length - 2) => rotateRightBackWardtNTime(input.length - 0)
-      case value if value == (input.length - 3) => rotateRightBackWardtNTime(input.length - 5)
-      case value if value == (input.length - 4) => rotateRightBackWardtNTime(input.length - 1)
-      case value if value == (input.length - 5) => rotateRightBackWardtNTime(input.length - 6)
-      case value if value == (input.length - 6) => rotateRightBackWardtNTime(input.length - 2)
-      case value if value == (input.length - 7) => rotateRightBackWardtNTime(input.length - 7)
-      case _ => throw Exception("Not managed")
+    rotateRightBackWardtNTime(computeNbMove(input.indexOf(letter)))
+
 
 case class ReversePositions(xPos: Int, yPos: Int) extends Action:
   override def forward(input: String): String =
