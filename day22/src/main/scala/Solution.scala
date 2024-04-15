@@ -1,12 +1,12 @@
 object Solution:
   def run(inputLines: Seq[String]): (String, String) =
 
-    val sizesParser = """([^ ]+)""".r.unanchored
+    val SizesExtractor = """ +([^ ]+) +([^ ]+) +([^ ]+) +([^ ]+)%.*""".r.unanchored
 
     val nodes = inputLines.collect:
       case s"/dev/grid/node-x${x}-y${y} $end" =>
-        val sizes = sizesParser.findAllMatchIn(end).map(_.subgroups.head).toList : @unchecked
-        Node(List(x, y) ::: sizes)
+        val SizesExtractor(SizeExtractor(total), SizeExtractor(used), SizeExtractor(available), percentage) = end : @unchecked
+        Node(x.toInt, y.toInt, total, used, available, percentage.toInt)
 
     val resultPart1 =
       nodes.map:
@@ -18,37 +18,63 @@ object Solution:
                 _.available.inBytes >= used
       .sum
 
-    //
-    // Code is here
-    //
-
-    /*
-    Filesystem              Size  Used  Avail  Use%
-/dev/grid/node-x0-y0     85T   65T    20T   76%
-/dev/grid/node-x0-y1     93T   66T    27T   70%
-/dev/grid/node-x0-y2     86T   65T    21T   75%
-     */
+    val resultPart2 = solvePart2(nodes)
 
 
     val result1 = s"$resultPart1"
-    val result2 = s""
+    val result2 = s"$resultPart2"
 
     (s"${result1}", s"${result2}")
 
 end Solution
 
+def solvePart2(nodes: Seq[Node]): Int =
+  lazy val getInitialEmpty: Node = nodes.find(_.isEmpty).get
+  lazy val findLowestXYTooLargeNode: Node = nodes.filter(_.used.intTBytes > 400).sortBy(_.x).head
+  lazy val distanceFromInitialEmptyToTurnAround: Int =
+    val (emptyX, emptyY) = getInitialEmpty.coords
+    val List(cornerX, cornerY) = findLowestXYTooLargeNode.coords.toList.map(_ - 1)
+
+    (emptyX - cornerX).abs + (emptyY - cornerY).abs
+
+  lazy val distanceFromCornerToData: Int =
+    val (dataX, dataY) = (nodes.map(_.x).max - 1, 0)
+    val List(cornerX, cornerY) = findLowestXYTooLargeNode.coords.toList.map(_ - 1)
+
+    (dataX - cornerX + 1).abs + (dataY - cornerY + 1).abs
+
+  lazy val nbStepsToMoveDataLeft: Int = 5
+
+  lazy val stepsToMoveDataInFrontOfGoal: Int =
+    val dataX = nodes.map(_.x).max
+    (dataX - 1) * nbStepsToMoveDataLeft
+
+  distanceFromInitialEmptyToTurnAround + distanceFromCornerToData + stepsToMoveDataInFrontOfGoal + 1
+
+
+class NodesHolder(val nodes: Seq[Node]):
+  def getEmptyOne: Node = nodes.find(_.isEmpty).get
+  def getAdjacent(node: Node): Seq[Node] =
+    nodes.filter:
+      case current if current.x == node.x && (current.y == node.y + 1 || current.y == node.y - 1) => true
+      case current if current.y == node.y && (current.x == node.x + 1 || current.x == node.x - 1) => true
+      case _ => false
+
 class Size(val inBytes: Long):
-  override def toString: String = s"$inBytes"
+  lazy val intTBytes = inBytes/1024/1024/1024
+  override def toString: String = s"${intTBytes}T"
 
-object Size:
-  def unapply(str: String): Size =
+object SizeExtractor:
+  def unapply(str: String): Option[Size] =
     str match
-      case s"${value}T" => Size(value.toLong * 1024 * 1024 * 1024)
-      case _ => throw Exception("Not supported")
+      case s"${value}T" => Some(Size(value.toLong * 1024 * 1024 * 1024))
+      case _ => None
 
-
-case class Node(x: Int, y : Int, total: Size, used: Size, available: Size, percentage: Int)
-
-object Node:
-  def apply(valuesAsString: List[String]): Node =
-    new Node(valuesAsString(0).toInt, valuesAsString(1).toInt, Size.unapply(valuesAsString(2)), Size.unapply(valuesAsString(3)), Size.unapply(valuesAsString(4)), valuesAsString(5).dropRight(1).toInt)
+case class Node(x: Int, y : Int, total: Size, used: Size, available: Size, percentage: Int):
+  lazy val coords: (Int, Int) = (x, y)
+  def isEmpty: Boolean = used.inBytes == 0
+  def canMoveIn(nodes: Seq[Node]): Seq[Node] =
+    this.isEmpty match
+      case false => Seq()
+      case true =>
+        nodes.filter(_.used.inBytes <= this.available.inBytes)
