@@ -5,7 +5,7 @@ object Solution:
 
     given registers: Registers = Registers()
 
-    val instructions = inputLines.toArray.collect:
+    val instructionsPart1, instructionsPart2 = inputLines.toArray.collect:
       case s"cpy ${input} ${to}" =>
         input.toIntOption match
           case Some(value) => CopyInt(value, to.asRegister)
@@ -20,20 +20,21 @@ object Solution:
           case (None, Some(toValue)) => JNZRegister(x.asRegister, toValue)
           case (None, None) => JNZFullRegister(x.asRegister, to.asRegister)
 
-    instructions.length match
+    instructionsPart1.length match
+      case 26 => registers.byName("a").set(7)
+      case _ => ()
+
+    val resultPart1 = process(instructionsPart1)
+
+    registers.reset
+    instructionsPart2.length match
       case 26 => registers.byName("a").set(12)
       case _ => ()
 
-    val resultPart1 = process(instructions)
-
-    /*registers.reset
-    registers.byName("c").set(1)
-    val resultPart2 = process(instructions)*/
-
-
+    val resultPart2 = process(instructionsPart2)
 
     val result1 = s"$resultPart1"
-    val result2 = s""
+    val result2 = s"$resultPart2"
 
     (s"${result1}", s"${result2}")
 
