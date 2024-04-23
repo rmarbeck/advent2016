@@ -77,9 +77,6 @@ def explore(zone: Array[Array[Char]]): Matrix =
 
   matrix
 
-type Level1PathValidator = Path => Boolean
-type Level2PathValidator = Path => Boolean
-
 class Matrix(val size: Int):
   override def toString: String = data.map(_.mkString("\t")).mkString("\n")
   private val data: Array[Array[Int]] = Array.fill(size, size)(0)
@@ -94,13 +91,6 @@ class Matrix(val size: Int):
     data(second)(first) = distance
     this
 
-  def shortest(from: Int): Int =
-    doShortest(from)(using path => path.isFull, path => path.isFull)
-
-  def shortestAndBack(from: Int): Int =
-    doShortest(from)(using path => path.isFull, path => path.isFullAndBack)
-
-
   def withPermutationsPart1(from: Int): Int =
     given Matrix = this
     (0 until this.size).filterNot(_ == from).permutations.map(current => Path(current.toList :+ from).steps).min
@@ -110,44 +100,12 @@ class Matrix(val size: Int):
     (0 until this.size).filterNot(_ == from).permutations.map(current => Path((from +: current.toList) :+ from).steps).min
 
 
-  def doShortest(from: Int)(using level1PathValidator: Level1PathValidator, level2PathValidator: Level2PathValidator): Int =
-    @tailrec
-    def findShortest(currentPaths: List[Path], validPaths: List[Path]): Int =
-      def nextPaths(from: Path, tail: List[Path]): List[Path] =
-        val filteredNewPaths = from.next.filterNot:
-          current => validPaths.exists(current.isWorseThan)
-        filteredNewPaths match
-          case Nil => tail
-          case _ => (filteredNewPaths ++: tail).sortBy(_.steps)
-      currentPaths match
-        case Nil => throw Exception("Not managed")
-        case head :: tail =>
-          if (validPaths.exists(head.isWorseThan))
-            findShortest(tail, validPaths)
-          else
-            (level1PathValidator.apply(head), level2PathValidator.apply(head)) match
-              case (true, true) => head.steps
-              case (true, false) =>
-                println(s"Found : ${head.jumps} (${head.steps})")
-                findShortest(nextPaths(head, tail), head +: validPaths)
-              case _ =>
-                findShortest(nextPaths(head, tail), validPaths)
-
-    given Matrix = this
-    val initialPathList = List(Path(List(from)))
-    findShortest(initialPathList, Nil)
-
 case class Path(jumps: List[Int])(using matrix: Matrix):
-  lazy val effectivePath = jumps.distinct.sorted
-  def isWorseThan(other: Path): Boolean =
-    jumps.head == other.jumps.head match
-      case true => effectivePath == other.effectivePath
-      case false => false
-
+  override def toString: String = s"${jumps.reverse.mkString("<->")} ($steps)"
   lazy val steps: Int = jumps.sliding(2, 1).collect:
     case List(first, second) => matrix.distanceBetween(first, second)
   .sum
-  lazy val isFull: Boolean = effectivePath.length == matrix.size
+  lazy val isFull: Boolean = jumps.distinct.length == matrix.size
   lazy val isFullAndBack: Boolean = isFull && jumps.head == 0
   lazy val next: List[Path] =
     isFull match
