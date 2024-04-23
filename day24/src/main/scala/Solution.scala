@@ -103,7 +103,7 @@ class Matrix(val size: Int):
 
   def withPermutationsPart1(from: Int): Int =
     given Matrix = this
-    (0 until this.size).filterNot(_ == from).permutations.map(current => Path(current.toList :+ from).steps).tapEach(println).min
+    (0 until this.size).filterNot(_ == from).permutations.map(current => Path(current.toList :+ from).steps).min
 
   def withPermutationsPart2(from: Int): Int =
     given Matrix = this
